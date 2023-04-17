@@ -244,7 +244,10 @@ int main(int argc, char** argv)
             encodeApp.loadFrame(&encodeConfig, curFrameIndex, cpuFrameBufferIdx);
             if (logBatchEnc) fprintf(stdout, "\tRecord frame curFrameIndex %d, cpuBatchIdx %d, cpuFrameBufferIdx %d\n", curFrameIndex, cpuBatchIdx, cpuFrameBufferIdx);
             // encode frame for the current frame index
-            encodeApp.encodeFrame(&encodeConfig, curFrameIndex, (curFrameIndex == 0), cpuFrameBufferIdx);
+            // DEBUG skip header
+            if (curFrameIndex != 0)
+                encodeApp.encodeFrame(&encodeConfig, curFrameIndex, (curFrameIndex == 0), cpuFrameBufferIdx);
+
             curFrameIndex++;
         }
         // #################################################################################################################

@@ -321,7 +321,7 @@ IntraFrameInfo::IntraFrameInfo(uint32_t frameCount, uint32_t width, uint32_t hei
 
     m_sliceInfo.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_NALU_SLICE_INFO_EXT;
     m_sliceInfo.pNext = NULL;
-    m_sliceInfo.pSliceHeaderStd = &m_sliceHeader;
+    m_sliceInfo.pStdSliceHeader = &m_sliceHeader;
     m_sliceInfo.mbCount = iPicSizeInMbs;
 
     if (isIdr) {
@@ -346,7 +346,7 @@ IntraFrameInfo::IntraFrameInfo(uint32_t frameCount, uint32_t width, uint32_t hei
     m_encodeH264FrameInfo.pNext = NULL;
     m_encodeH264FrameInfo.naluSliceEntryCount = 1;
     m_encodeH264FrameInfo.pNaluSliceEntries = &m_sliceInfo;
-    m_encodeH264FrameInfo.pCurrentPictureInfo = &m_stdPictureInfo;
+    m_encodeH264FrameInfo.pStdPictureInfo = &m_stdPictureInfo;
 }
 
 VideoSessionParametersInfo::VideoSessionParametersInfo(VkVideoSessionKHR videoSession, StdVideoH264SequenceParameterSet* sps, StdVideoH264PictureParameterSet* pps)
@@ -368,6 +368,7 @@ VideoSessionParametersInfo::VideoSessionParametersInfo(VkVideoSessionKHR videoSe
 
     m_encodeSessionParametersCreateInfo.sType = VK_STRUCTURE_TYPE_VIDEO_SESSION_PARAMETERS_CREATE_INFO_KHR;
     m_encodeSessionParametersCreateInfo.pNext = &m_encodeH264SessionParametersCreateInfo;
+    m_encodeSessionParametersCreateInfo.flags = 0;
     m_encodeSessionParametersCreateInfo.videoSessionParametersTemplate = NULL;
     m_encodeSessionParametersCreateInfo.videoSession = m_videoSession;
 }
@@ -644,6 +645,7 @@ int32_t EncodeApp::loadFrame(EncodeConfig* encodeConfig, uint32_t frameCount, ui
 // 10. end video encoding
 int32_t EncodeApp::encodeFrame(EncodeConfig* encodeConfig, uint32_t frameCount, bool nonVcl, uint32_t currentFrameBufferIdx)
 {
+
     VkResult result = VK_SUCCESS;
 
     // GOP structure config all intra:
@@ -682,6 +684,7 @@ int32_t EncodeApp::encodeFrame(EncodeConfig* encodeConfig, uint32_t frameCount, 
     vkCmdBeginVideoCodingKHR(cmdBuf, &encodeBeginInfo);
 
     uint32_t bitstreamOffset = 0; // necessary non zero value for first frame
+    /*
     if(nonVcl) {
         // Encode Non VCL data - SPS and PPS
         EncodeInfoNonVcl encodeInfoNonVcl(&m_videoSessionParameters.m_sequenceParameterSet,
@@ -694,6 +697,7 @@ int32_t EncodeApp::encodeFrame(EncodeConfig* encodeConfig, uint32_t frameCount, 
         vkCmdEndQuery(cmdBuf, queryPool, querySlotIdNonVCL);
         bitstreamOffset = NON_VCL_BITSTREAM_OFFSET; // use 4k for first frame and then update with size of last frame
     }
+    */
     // Encode Frame
     // encode info for vkCmdEncodeVideoKHR
     IntraFrameInfo intraFrameInfo(frameCount, encodeConfig->width, encodeConfig->height,
@@ -789,8 +793,9 @@ int32_t EncodeApp::assembleBitstreamData(EncodeConfig* encodeConfig, bool nonVcl
         // only on frame 0
         bitstreamOffset = NON_VCL_BITSTREAM_OFFSET;
         uint32_t querySlotIdNonVCL = currentFrameBufferIdx + INPUT_FRAME_BUFFER_SIZE;
-        result = vkGetQueryPoolResults(m_ctx.m_device, queryPool, querySlotIdNonVCL, 1, sizeof(nvVideoEncodeStatus),
-                                       &encodeResult[1], sizeof(nvVideoEncodeStatus), VK_QUERY_RESULT_WITH_STATUS_BIT_KHR | VK_QUERY_RESULT_WAIT_BIT);
+        //TODO freeze
+        //result = vkGetQueryPoolResults(m_ctx.m_device, queryPool, querySlotIdNonVCL, 1, sizeof(nvVideoEncodeStatus),
+        //                               &encodeResult[1], sizeof(nvVideoEncodeStatus), VK_QUERY_RESULT_WITH_STATUS_BIT_KHR | VK_QUERY_RESULT_WAIT_BIT);
         if(result != VK_SUCCESS) {
             fprintf(stderr, "\nRetrieveData Error: Failed to get non vcl query pool results.\n");
             return -1;
@@ -799,8 +804,8 @@ int32_t EncodeApp::assembleBitstreamData(EncodeConfig* encodeConfig, bool nonVcl
     }
 
     uint32_t querySlotIdVCL = currentFrameBufferIdx;
-    result = vkGetQueryPoolResults(m_ctx.m_device, queryPool, querySlotIdVCL, 1, sizeof(nvVideoEncodeStatus),
-                                   &encodeResult[0], sizeof(nvVideoEncodeStatus), VK_QUERY_RESULT_WITH_STATUS_BIT_KHR | VK_QUERY_RESULT_WAIT_BIT);
+    //result = vkGetQueryPoolResults(m_ctx.m_device, queryPool, querySlotIdVCL, 1, sizeof(nvVideoEncodeStatus),
+    //                               &encodeResult[0], sizeof(nvVideoEncodeStatus), VK_QUERY_RESULT_WITH_STATUS_BIT_KHR | VK_QUERY_RESULT_WAIT_BIT);
     if(result != VK_SUCCESS) {
         fprintf(stderr, "\nRetrieveData Error: Failed to get vcl query pool results.\n");
         return -1;
@@ -831,3 +836,6 @@ int32_t EncodeApp::deinitEncoder()
 
     return 0;
 }
+
+
+

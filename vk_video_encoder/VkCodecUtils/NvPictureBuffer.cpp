@@ -19,10 +19,15 @@
 
 VkResult NvPictureBuffer::createVideoQueries(uint32_t numSlots, nvvk::Context* deviceInfo, const VkVideoProfileInfoKHR* pEncodeProfile)
 {
+    VkQueryPoolVideoEncodeFeedbackCreateInfoKHR encodeFeedbackQueryType;
+    encodeFeedbackQueryType.sType = VK_STRUCTURE_TYPE_QUERY_POOL_VIDEO_ENCODE_FEEDBACK_CREATE_INFO_KHR;
+    encodeFeedbackQueryType.pNext = pEncodeProfile;
+    encodeFeedbackQueryType.encodeFeedbackFlags = VK_VIDEO_ENCODE_FEEDBACK_BITSTREAM_BUFFER_OFFSET_BIT_KHR | VK_VIDEO_ENCODE_FEEDBACK_BITSTREAM_BYTES_WRITTEN_BIT_KHR;
+
     VkQueryPoolCreateInfo queryPoolCreateInfo = {VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
-    queryPoolCreateInfo.queryType = VK_QUERY_TYPE_VIDEO_ENCODE_BITSTREAM_BUFFER_RANGE_KHR;
+    queryPoolCreateInfo.queryType = VK_QUERY_TYPE_VIDEO_ENCODE_FEEDBACK_KHR;
     queryPoolCreateInfo.queryCount = numSlots * 2;
-    queryPoolCreateInfo.pNext = pEncodeProfile;
+    queryPoolCreateInfo.pNext = &encodeFeedbackQueryType;
 
     return vkCreateQueryPool(deviceInfo->m_device, &queryPoolCreateInfo, NULL, &m_queryPool);
 }
@@ -49,7 +54,7 @@ void NvPictureBuffer::initReferenceFramePool(uint32_t                   numImage
     VkImageCreateInfo tmpImgCreateInfo;
 
     tmpImgCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    tmpImgCreateInfo.pNext = m_videoProfile.GetProfile();
+    tmpImgCreateInfo.pNext = m_videoProfile.GetProfileListInfo();
     tmpImgCreateInfo.imageType = VK_IMAGE_TYPE_2D;
     tmpImgCreateInfo.format = imageFormat;
     tmpImgCreateInfo.extent = { m_extent.width, m_extent.height, 1 };
@@ -58,7 +63,8 @@ void NvPictureBuffer::initReferenceFramePool(uint32_t                   numImage
     tmpImgCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     tmpImgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     tmpImgCreateInfo.usage = VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR; // DPB ONLY
-    tmpImgCreateInfo.sharingMode = VK_SHARING_MODE_CONCURRENT; // VK_SHARING_MODE_EXCLUSIVE here makes it not check for queueFamily
+    //tmpImgCreateInfo.sharingMode = VK_SHARING_MODE_CONCURRENT; // VK_SHARING_MODE_EXCLUSIVE here makes it not check for queueFamily
+    tmpImgCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     tmpImgCreateInfo.queueFamilyIndexCount = 1;
     tmpImgCreateInfo.pQueueFamilyIndices = &m_queueFamilyIndex;
     tmpImgCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -127,7 +133,7 @@ int32_t NvPictureBuffer::initFramePool( nvvk::Context* ctx,
 
     m_queueFamilyIndex = queueFamilyIndex;
     m_imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    m_imageCreateInfo.pNext = m_videoProfile.GetProfile();
+    m_imageCreateInfo.pNext = m_videoProfile.GetProfileListInfo();
     m_imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
     m_imageCreateInfo.format = imageFormat;
     m_imageCreateInfo.extent = { maxImageWidth, maxImageHeight, 1 };
@@ -342,7 +348,7 @@ uint32_t NvPictureBuffer::initFrame(uint32_t numImages,
         result = vkCreateSemaphore(dev, &semInfo, nullptr, &m_encodeFrameData[imageIndex].m_frameProducerDoneSemaphore);
         assert(result == VK_SUCCESS);
 
-        VkBufferCreateInfo outBitstreamCreateInfo = nvvk::makeBufferCreateInfo(m_maxBitstreamSize, VK_BUFFER_USAGE_VIDEO_ENCODE_DST_BIT_KHR);
+        VkBufferCreateInfo outBitstreamCreateInfo = nvvk::makeBufferCreateInfo(m_maxBitstreamSize, VK_BUFFER_USAGE_VIDEO_ENCODE_DST_BIT_KHR, 0, m_videoProfile.GetProfileListInfo());
         m_encodeFrameData[imageIndex].m_outBitstreamBuffer = rAlloc->createBuffer(outBitstreamCreateInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); //FLAGS - map buffer to host
 
         VkBufferCreateInfo stagingBufferCreateInfo = nvvk::makeBufferCreateInfo(m_fullImageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
